@@ -38,6 +38,9 @@ class BusinessCell: UITableViewCell {
         
         nameLabel.preferredMaxLayoutWidth = nameLabel.frame.size.width
         
+        self.layoutMargins = UIEdgeInsetsZero
+        self.preservesSuperviewLayoutMargins = false
+        
     }
     
     override func layoutSubviews() {

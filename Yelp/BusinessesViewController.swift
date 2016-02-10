@@ -8,7 +8,7 @@
 
 import UIKit
 
-class BusinessesViewController: UIViewController, UITableViewDataSource, UITableViewDelegate, UISearchBarDelegate {
+class BusinessesViewController: UIViewController, UITableViewDataSource, UITableViewDelegate, UISearchBarDelegate, UIScrollViewDelegate {
 
     var businesses: [Business]!
     var searchBar = UISearchBar()
@@ -19,12 +19,24 @@ class BusinessesViewController: UIViewController, UITableViewDataSource, UITable
     override func viewDidLoad() {
         super.viewDidLoad()
         
+        tableView.separatorInset = UIEdgeInsetsZero
+        
+        // Set up Infinite Scroll loading indicator
+        let frame = CGRectMake(0, tableView.contentSize.height, tableView.bounds.size.width, InfiniteScrollActivityView.defaultHeight)
+        loadingMoreView = InfiniteScrollActivityView(frame: frame)
+        loadingMoreView!.hidden = true
+        tableView.addSubview(loadingMoreView!)
+        
+        var insets = tableView.contentInset;
+        insets.bottom += InfiniteScrollActivityView.defaultHeight;
+        tableView.contentInset = insets
+        
         tableView.delegate = self
         tableView.dataSource = self
         tableView.rowHeight = UITableViewAutomaticDimension
         tableView.estimatedRowHeight = 120
 
-        Business.searchWithTerm("Thai", completion: { (businesses: [Business]!, error: NSError!) -> Void in
+        Business.searchWithTerm("", completion: { (businesses: [Business]!, error: NSError!) -> Void in
             self.businesses = businesses
             self.tableView.reloadData()
             for business in businesses {
@@ -62,6 +74,46 @@ class BusinessesViewController: UIViewController, UITableViewDataSource, UITable
         }
     }
     
+    var isMoreDataLoading = false
+    var loadingMoreView:InfiniteScrollActivityView?
+    
+    func scrollViewDidScroll(scrollView: UIScrollView) {
+        if (!isMoreDataLoading)
+        {
+            // Calculate the position of one screen length before the bottom of the results
+            let scrollViewContentHeight = tableView.contentSize.height
+            let scrollOffsetThreshold = scrollViewContentHeight - tableView.bounds.size.height
+            
+            // When the user has scrolled past the threshold, start requesting
+            if(scrollView.contentOffset.y > scrollOffsetThreshold && tableView.dragging) {
+                isMoreDataLoading = true
+                
+                // Update position of loadingMoreView, and start loading indicator
+                let frame = CGRectMake(0, tableView.contentSize.height, tableView.bounds.size.width, InfiniteScrollActivityView.defaultHeight)
+                loadingMoreView?.frame = frame
+                loadingMoreView!.startAnimating()
+                
+                Business.searchWithTerm("", completion: { (businesses: [Business]!, error: NSError!) -> Void in
+                    self.businesses = businesses
+                    
+                    // Update flag
+                    self.isMoreDataLoading = false
+                    
+                    // Stop the loading indicator
+                    self.loadingMoreView!.stopAnimating()
+                    
+                    self.tableView.reloadData()
+                })
+            }
+        }
+    }
+    
+//    func searchBarSearchButtonClicked(searchBar: UISearchBar) {
+//        if searchBar.text != nil && !searchBar.text?.isEmpty {
+//            
+//        }
+//    }
+    
     func tableView(tableView: UITableView, cellForRowAtIndexPath indexPath: NSIndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCellWithIdentifier("BusinessCell", forIndexPath: indexPath) as! BusinessCell
         
@@ -80,4 +132,40 @@ class BusinessesViewController: UIViewController, UITableViewDataSource, UITable
     }
     */
 
+}
+
+class InfiniteScrollActivityView: UIView {
+    var activityIndicatorView: UIActivityIndicatorView = UIActivityIndicatorView()
+    static let defaultHeight:CGFloat = 60.0
+    
+    required init?(coder aDecoder: NSCoder) {
+        super.init(coder: aDecoder)
+        setupActivityIndicator()
+    }
+    
+    override init(frame aRect: CGRect) {
+        super.init(frame: aRect)
+        setupActivityIndicator()
+    }
+    
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        activityIndicatorView.center = CGPointMake(self.bounds.size.width/2, self.bounds.size.height/2)
+    }
+    
+    func setupActivityIndicator() {
+        activityIndicatorView.activityIndicatorViewStyle = .Gray
+        activityIndicatorView.hidesWhenStopped = true
+        self.addSubview(activityIndicatorView)
+    }
+    
+    func stopAnimating() {
+        self.activityIndicatorView.stopAnimating()
+        self.hidden = true
+    }
+    
+    func startAnimating() {
+        self.hidden = false
+        self.activityIndicatorView.startAnimating()
+    }
 }
